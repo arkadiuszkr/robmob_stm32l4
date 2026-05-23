@@ -9,7 +9,6 @@
 
 #include "cli_menu.h"
 #include "main_Robot.h"
-#include "thread_settings_rpi.h"
 
 // -------------------- Menu general functions --------------------
 

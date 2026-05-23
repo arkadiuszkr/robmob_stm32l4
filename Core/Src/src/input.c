@@ -1,7 +1,7 @@
 #include "input.h"
 #include "cli_menu.h"
 #include "main_Robot.h"
-#include "thread_settings_rpi.h"
+#include "thread_settings_stm32l4.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -76,25 +76,25 @@ void resetPasswordBufferAndReturn_WithDelay(const char *message, bool withDelay)
     _input_currentListeningMode = INPUTMODE_NAVIGATION;
 }
 
-void *input_inputReadThread_terminal(void *args) {
-    char pressedCharacter;
-    while (1) {
-        if (read(STDIN_FILENO, &pressedCharacter, 1) < 0) {
-            // usleep(USLEEP_BUTTONINPUT_TERMINAL);
-            continue;
-        }
-        switch (pressedCharacter) {
-            case 'j': inputAction_Down(); break;
-            case 'k': inputAction_Up(); break;
-            case 'l': inputAction_Select(); break;
-            case 'h': inputAction_Back(); break;
-            case 'q': inputAction_Quit(); break;
-        }
-
-        // usleep(USLEEP_BUTTONINPUT_TERMINAL);
-    }
-    return NULL;
-}
+// void *input_inputReadThread_terminal(void *args) {
+//     char pressedCharacter;
+//     while (1) {
+//         if (read(STDIN_FILENO, &pressedCharacter, 1) < 0) {
+//             // usleep(USLEEP_BUTTONINPUT_TERMINAL);
+//             continue;
+//         }
+//         switch (pressedCharacter) {
+//             case 'j': inputAction_Down(); break;
+//             case 'k': inputAction_Up(); break;
+//             case 'l': inputAction_Select(); break;
+//             case 'h': inputAction_Back(); break;
+//             case 'q': inputAction_Quit(); break;
+//         }
+// 
+//         // usleep(USLEEP_BUTTONINPUT_TERMINAL);
+//     }
+//     return NULL;
+//}
 
 void mainMode_reapplyChanges() { _currentMenu->reprintRequested = true; }
 void main_chooseMainMode_Official() {

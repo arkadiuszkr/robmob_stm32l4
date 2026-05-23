@@ -12,7 +12,11 @@ void terminalUART_clear() {
     osMessageQueuePut(Queue_UART_SendDebugHandle, &msg, 0, 0);
 }
 
-void terminalUART_print(const char *str) { printf("%s", str); }
+void terminalUART_print(const char *str) {
+    UARTMessage msg;
+    snprintf(msg, MAX_UART_DebugMessageLength, "%s", str);
+    osMessageQueuePut(Queue_UART_SendDebugHandle, &msg, 0, 0);
+}
 void terminalUART_printLine(const char *str) {
     UARTMessage msg;
     snprintf(msg, MAX_UART_DebugMessageLength, "%s\r\n", str);

@@ -26,10 +26,12 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "freertos_header.h"
-#include "usart.h"
-#include <string.h>
-#include <stdio.h>
+#include "input.h"
 #include "main_Robot.h"
+#include "thread_settings_stm32l4.h"
+#include "usart.h"
+#include <stdio.h>
+#include <string.h>
 
 /* USER CODE END Includes */
 
@@ -59,10 +61,29 @@ const osThreadAttr_t TaskN_UARTDebug_attributes = {
   .stack_size = 1024 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
+/* Definitions for TaskN_Menu_Repr */
+osThreadId_t TaskN_Menu_ReprHandle;
+const osThreadAttr_t TaskN_Menu_Repr_attributes = {
+  .name = "TaskN_Menu_Repr",
+  .stack_size = 512 * 4,
+  .priority = (osPriority_t) osPriorityLow,
+};
+/* Definitions for TaskN_InputComp */
+osThreadId_t TaskN_InputCompHandle;
+const osThreadAttr_t TaskN_InputComp_attributes = {
+  .name = "TaskN_InputComp",
+  .stack_size = 512 * 4,
+  .priority = (osPriority_t) osPriorityLow,
+};
 /* Definitions for Queue_UART_SendDebug */
 osMessageQueueId_t Queue_UART_SendDebugHandle;
 const osMessageQueueAttr_t Queue_UART_SendDebug_attributes = {
   .name = "Queue_UART_SendDebug"
+};
+/* Definitions for Queue_InputAction */
+osMessageQueueId_t Queue_InputActionHandle;
+const osMessageQueueAttr_t Queue_InputAction_attributes = {
+  .name = "Queue_InputAction"
 };
 
 /* Private function prototypes -----------------------------------------------*/
@@ -71,6 +92,8 @@ const osMessageQueueAttr_t Queue_UART_SendDebug_attributes = {
 /* USER CODE END FunctionPrototypes */
 
 void Task_UART_SendDebug(void *argument);
+void Task_Menu_Reprint(void *argument);
+void Task_InputCompute(void *argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
@@ -100,6 +123,9 @@ void MX_FREERTOS_Init(void) {
   /* creation of Queue_UART_SendDebug */
   Queue_UART_SendDebugHandle = osMessageQueueNew (16, sizeof(UARTMessage), &Queue_UART_SendDebug_attributes);
 
+  /* creation of Queue_InputAction */
+  Queue_InputActionHandle = osMessageQueueNew (16, sizeof(InputAction_Press), &Queue_InputAction_attributes);
+
   /* USER CODE BEGIN RTOS_QUEUES */
     /* add queues, ... */
   /* USER CODE END RTOS_QUEUES */
@@ -108,19 +134,20 @@ void MX_FREERTOS_Init(void) {
   /* creation of TaskN_UARTDebug */
   TaskN_UARTDebugHandle = osThreadNew(Task_UART_SendDebug, NULL, &TaskN_UARTDebug_attributes);
 
+  /* creation of TaskN_Menu_Repr */
+  TaskN_Menu_ReprHandle = osThreadNew(Task_Menu_Reprint, NULL, &TaskN_Menu_Repr_attributes);
+
+  /* creation of TaskN_InputComp */
+  TaskN_InputCompHandle = osThreadNew(Task_InputCompute, NULL, &TaskN_InputComp_attributes);
+
   /* USER CODE BEGIN RTOS_THREADS */
     /* add threads, ... */
   /* USER CODE END RTOS_THREADS */
 
   /* USER CODE BEGIN RTOS_EVENTS */
     /* add events, ... */
-  const char message[] = "Test test\r\n";
-  HAL_UART_Transmit(&huart1, (uint8_t*)message, strlen(message), HAL_MAX_DELAY);
-  UARTMessage msg;
-  snprintf(msg, MAX_UART_DebugMessageLength, "%s", message);
-  osMessageQueuePut(Queue_UART_SendDebugHandle, (void*)msg, 0, 1000);
 
-  main_Robot();
+    main_Robot();
   /* USER CODE END RTOS_EVENTS */
 
 }
@@ -135,7 +162,6 @@ void MX_FREERTOS_Init(void) {
 void Task_UART_SendDebug(void *argument)
 {
   /* USER CODE BEGIN Task_UART_SendDebug */
-
     UARTMessage msg;
     /* Infinite loop */
     for (;;) {
@@ -149,6 +175,72 @@ void Task_UART_SendDebug(void *argument)
         }
     }
   /* USER CODE END Task_UART_SendDebug */
+}
+
+/* USER CODE BEGIN Header_Task_Menu_Reprint */
+/**
+ * @brief Function implementing the TaskN_Menu_Repr thread.
+ * @param argument: Not used
+ * @retval None
+ */
+/* USER CODE END Header_Task_Menu_Reprint */
+void Task_Menu_Reprint(void *argument)
+{
+  /* USER CODE BEGIN Task_Menu_Reprint */
+    /* Infinite loop */
+    for (;;) {
+        if (_currentMenu == NULL) {
+            // ---------- Screen saver/wallpaper ----------
+            // system("clear");
+            // printf("Screensaver/wallpaper here\n");
+            // fflush(stdout);
+
+            osDelay(SLEEP_MS_MENU_REPRINT);
+            continue;
+        }
+        if (!_currentMenu->reprintRequested) {
+            osDelay(SLEEP_MS_MENU_REPRINT);
+            continue;
+        }
+
+        menu_show_reprint(_mainDisplayDrivers->displayDriverArray, _mainDisplayDrivers->driverCount, _currentMenu);
+        // time_t now;
+        // time(&now);
+        // printf("Reprinting requested, %s\n", ctime(&now));
+        _currentMenu->reprintRequested = false;
+
+        osDelay(SLEEP_MS_MENU_REPRINT);
+        continue;
+    }
+  /* USER CODE END Task_Menu_Reprint */
+}
+
+/* USER CODE BEGIN Header_Task_InputCompute */
+/**
+ * @brief Function implementing the TaskN_InputComp thread.
+ * @param argument: Not used
+ * @retval None
+ */
+/* USER CODE END Header_Task_InputCompute */
+void Task_InputCompute(void *argument)
+{
+  /* USER CODE BEGIN Task_InputCompute */
+    InputAction_Press pressedAction;
+    /* Infinite loop */
+    for (;;) {
+        osStatus_t status = osMessageQueueGet(Queue_InputActionHandle, &pressedAction, 0, osWaitForever);
+        if (status != osOK) {
+            continue;
+        }
+        switch (pressedAction) {
+            case InputPress_Down: inputAction_Down(); break;
+            case InputPress_Up: inputAction_Up(); break;
+            case InputPress_Right: inputAction_Select(); break;
+            case InputPress_Left: inputAction_Back(); break;
+            case InputPress_Quit: inputAction_Quit(); break;
+        }
+    }
+  /* USER CODE END Task_InputCompute */
 }
 
 /* Private application code --------------------------------------------------*/

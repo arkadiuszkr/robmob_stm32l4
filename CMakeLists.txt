@@ -57,6 +57,7 @@ file(GLOB_RECURSE USER_SRC
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
     ${USER_SRC}
+    "${CMAKE_SOURCE_DIR}/Core/Src/mainISR.c"
 )
 
 # Add include paths
