@@ -56,7 +56,7 @@
 osThreadId_t TaskN_UARTDebugHandle;
 const osThreadAttr_t TaskN_UARTDebug_attributes = {
   .name = "TaskN_UARTDebug",
-  .stack_size = 512 * 4,
+  .stack_size = 1024 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for Queue_UART_SendDebug */
@@ -115,6 +115,7 @@ void MX_FREERTOS_Init(void) {
   /* USER CODE BEGIN RTOS_EVENTS */
     /* add events, ... */
   const char message[] = "Test test\r\n";
+  HAL_UART_Transmit(&huart1, (uint8_t*)message, strlen(message), HAL_MAX_DELAY);
   UARTMessage msg;
   snprintf(msg, MAX_UART_DebugMessageLength, "%s", message);
   osMessageQueuePut(Queue_UART_SendDebugHandle, (void*)msg, 0, 1000);
@@ -141,10 +142,10 @@ void Task_UART_SendDebug(void *argument)
         osStatus_t status = osMessageQueueGet(Queue_UART_SendDebugHandle, msg, 0, osWaitForever);
         if (status == osOK) {
             size_t size = strlen(msg);
-            HAL_UART_Transmit(&huart2, (uint8_t *)msg, strlen(msg), HAL_MAX_DELAY);
+            HAL_UART_Transmit(&huart1, (uint8_t *)msg, strlen(msg), HAL_MAX_DELAY);
         } else {
             const char message[] = "Error \r\n";
-            HAL_UART_Transmit(&huart2, (uint8_t *)message, strlen(message), HAL_MAX_DELAY);
+            HAL_UART_Transmit(&huart1, (uint8_t *)message, strlen(message), HAL_MAX_DELAY);
         }
     }
   /* USER CODE END Task_UART_SendDebug */
