@@ -1,0 +1,9 @@
+Language: Cpp
+BasedOnStyle: LLVM
+IndentWidth: 4
+IndentCaseLabels: true
+AllowShortFunctionsOnASingleLine: All
+AllowShortCaseLabelsOnASingleLine: true
+AllowShortIfStatementsOnASingleLine: WithoutElse
+AllowShortLoopsOnASingleLine: true
+ColumnLimit: 120

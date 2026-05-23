@@ -58,7 +58,12 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
 # Add include paths
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined include paths
+    ${CMAKE_SOURCE_DIR}/Core/Inc/include
+    ${CMAKE_SOURCE_DIR}/Core/Inc/include/ui
+    ${CMAKE_SOURCE_DIR}/Core/Inc/include/platform
+    ${CMAKE_SOURCE_DIR}/Core/Inc/include/platform/stm32l4
 )
+
 
 # Add project symbols (macros)
 target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
