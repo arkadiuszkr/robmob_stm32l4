@@ -71,7 +71,7 @@ void resetPasswordBufferAndReturn_WithDelay(const char *message, bool withDelay)
         fflush(stdout);
     }
 
-    if (withDelay) usleep(1000 * 1000);
+    // if (withDelay) usleep(1000 * 1000);
     // Return to menu mode
     _input_currentListeningMode = INPUTMODE_NAVIGATION;
 }
@@ -80,7 +80,7 @@ void *input_inputReadThread_terminal(void *args) {
     char pressedCharacter;
     while (1) {
         if (read(STDIN_FILENO, &pressedCharacter, 1) < 0) {
-            usleep(USLEEP_BUTTONINPUT_TERMINAL);
+            // usleep(USLEEP_BUTTONINPUT_TERMINAL);
             continue;
         }
         switch (pressedCharacter) {
@@ -91,7 +91,7 @@ void *input_inputReadThread_terminal(void *args) {
             case 'q': inputAction_Quit(); break;
         }
 
-        usleep(USLEEP_BUTTONINPUT_TERMINAL);
+        // usleep(USLEEP_BUTTONINPUT_TERMINAL);
     }
     return NULL;
 }

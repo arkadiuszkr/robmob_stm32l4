@@ -1,20 +1,20 @@
 /* USER CODE BEGIN Header */
 /**
-  ******************************************************************************
-  * File Name          : freertos.c
-  * Description        : Code for freertos applications
-  ******************************************************************************
-  * @attention
-  *
-  * Copyright (c) 2026 STMicroelectronics.
-  * All rights reserved.
-  *
-  * This software is licensed under terms that can be found in the LICENSE file
-  * in the root directory of this software component.
-  * If no LICENSE file comes with this software, it is provided AS-IS.
-  *
-  ******************************************************************************
-  */
+ ******************************************************************************
+ * File Name          : freertos.c
+ * Description        : Code for freertos applications
+ ******************************************************************************
+ * @attention
+ *
+ * Copyright (c) 2026 STMicroelectronics.
+ * All rights reserved.
+ *
+ * This software is licensed under terms that can be found in the LICENSE file
+ * in the root directory of this software component.
+ * If no LICENSE file comes with this software, it is provided AS-IS.
+ *
+ ******************************************************************************
+ */
 /* USER CODE END Header */
 
 /* Includes ------------------------------------------------------------------*/
@@ -25,6 +25,11 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "freertos_header.h"
+#include "usart.h"
+#include <string.h>
+#include <stdio.h>
+#include "main_Robot.h"
 
 /* USER CODE END Includes */
 
@@ -47,12 +52,17 @@
 /* USER CODE BEGIN Variables */
 
 /* USER CODE END Variables */
-/* Definitions for defaultTask */
-osThreadId_t defaultTaskHandle;
-const osThreadAttr_t defaultTask_attributes = {
-  .name = "defaultTask",
-  .stack_size = 128 * 4,
+/* Definitions for TaskN_UARTDebug */
+osThreadId_t TaskN_UARTDebugHandle;
+const osThreadAttr_t TaskN_UARTDebug_attributes = {
+  .name = "TaskN_UARTDebug",
+  .stack_size = 512 * 4,
   .priority = (osPriority_t) osPriorityNormal,
+};
+/* Definitions for Queue_UART_SendDebug */
+osMessageQueueId_t Queue_UART_SendDebugHandle;
+const osMessageQueueAttr_t Queue_UART_SendDebug_attributes = {
+  .name = "Queue_UART_SendDebug"
 };
 
 /* Private function prototypes -----------------------------------------------*/
@@ -60,7 +70,7 @@ const osThreadAttr_t defaultTask_attributes = {
 
 /* USER CODE END FunctionPrototypes */
 
-void StartDefaultTask(void *argument);
+void Task_UART_SendDebug(void *argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
@@ -75,51 +85,69 @@ void MX_FREERTOS_Init(void) {
   /* USER CODE END Init */
 
   /* USER CODE BEGIN RTOS_MUTEX */
-  /* add mutexes, ... */
+    /* add mutexes, ... */
   /* USER CODE END RTOS_MUTEX */
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
-  /* add semaphores, ... */
+    /* add semaphores, ... */
   /* USER CODE END RTOS_SEMAPHORES */
 
   /* USER CODE BEGIN RTOS_TIMERS */
-  /* start timers, add new ones, ... */
+    /* start timers, add new ones, ... */
   /* USER CODE END RTOS_TIMERS */
 
+  /* Create the queue(s) */
+  /* creation of Queue_UART_SendDebug */
+  Queue_UART_SendDebugHandle = osMessageQueueNew (16, sizeof(UARTMessage), &Queue_UART_SendDebug_attributes);
+
   /* USER CODE BEGIN RTOS_QUEUES */
-  /* add queues, ... */
+    /* add queues, ... */
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
-  /* creation of defaultTask */
-  defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
+  /* creation of TaskN_UARTDebug */
+  TaskN_UARTDebugHandle = osThreadNew(Task_UART_SendDebug, NULL, &TaskN_UARTDebug_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
-  /* add threads, ... */
+    /* add threads, ... */
   /* USER CODE END RTOS_THREADS */
 
   /* USER CODE BEGIN RTOS_EVENTS */
-  /* add events, ... */
+    /* add events, ... */
+  const char message[] = "Test test\r\n";
+  UARTMessage msg;
+  snprintf(msg, MAX_UART_DebugMessageLength, "%s", message);
+  osMessageQueuePut(Queue_UART_SendDebugHandle, (void*)msg, 0, 1000);
+
+  main_Robot();
   /* USER CODE END RTOS_EVENTS */
 
 }
 
-/* USER CODE BEGIN Header_StartDefaultTask */
+/* USER CODE BEGIN Header_Task_UART_SendDebug */
 /**
-  * @brief  Function implementing the defaultTask thread.
-  * @param  argument: Not used
-  * @retval None
-  */
-/* USER CODE END Header_StartDefaultTask */
-void StartDefaultTask(void *argument)
+ * @brief  Function implementing the TaskN_UARTDebug thread.
+ * @param  argument: Not used
+ * @retval None
+ */
+/* USER CODE END Header_Task_UART_SendDebug */
+void Task_UART_SendDebug(void *argument)
 {
-  /* USER CODE BEGIN StartDefaultTask */
-  /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
-  /* USER CODE END StartDefaultTask */
+  /* USER CODE BEGIN Task_UART_SendDebug */
+
+    UARTMessage msg;
+    /* Infinite loop */
+    for (;;) {
+        osStatus_t status = osMessageQueueGet(Queue_UART_SendDebugHandle, msg, 0, osWaitForever);
+        if (status == osOK) {
+            size_t size = strlen(msg);
+            HAL_UART_Transmit(&huart2, (uint8_t *)msg, strlen(msg), HAL_MAX_DELAY);
+        } else {
+            const char message[] = "Error \r\n";
+            HAL_UART_Transmit(&huart2, (uint8_t *)message, strlen(message), HAL_MAX_DELAY);
+        }
+    }
+  /* USER CODE END Task_UART_SendDebug */
 }
 
 /* Private application code --------------------------------------------------*/

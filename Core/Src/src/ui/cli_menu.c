@@ -188,30 +188,30 @@ void menu_clear(DisplayDriver *driverArray, size_t driverCount) {
 //     }
 // }
 
-void *reprint_menu_cache(void *args) {
-    while (1) {
-        if (_currentMenu == NULL) {
-            // ---------- Screen saver/wallpaper ----------
-            system("clear");
-            printf("Screensaver/wallpaper here\n");
-            // fflush(stdout);
+// void *reprint_menu_cache(void *args) {
+//   while (1) {
+//       if (_currentMenu == NULL) {
+//           // ---------- Screen saver/wallpaper ----------
+//           system("clear");
+//           printf("Screensaver/wallpaper here\n");
+//           // fflush(stdout);
 
-            usleep(USLEEP_MENU_REPRINT);
-            continue;
-        }
-        if (!_currentMenu->reprintRequested) {
-            usleep(USLEEP_MENU_REPRINT);
-            continue;
-        }
+//           usleep(USLEEP_MENU_REPRINT);
+//           continue;
+//       }
+//       if (!_currentMenu->reprintRequested) {
+//           usleep(USLEEP_MENU_REPRINT);
+//           continue;
+//       }
 
-        menu_show_reprint(_mainDisplayDrivers->displayDriverArray, _mainDisplayDrivers->driverCount, _currentMenu);
-        // time_t now;
-        // time(&now);
-        // printf("Reprinting requested, %s\n", ctime(&now));
-        _currentMenu->reprintRequested = false;
+//       menu_show_reprint(_mainDisplayDrivers->displayDriverArray, _mainDisplayDrivers->driverCount, _currentMenu);
+//       // time_t now;
+//       // time(&now);
+//       // printf("Reprinting requested, %s\n", ctime(&now));
+//       _currentMenu->reprintRequested = false;
 
-        usleep(USLEEP_MENU_REPRINT);
-        continue;
-    }
-    return NULL;
-}
+//       usleep(USLEEP_MENU_REPRINT);
+//       continue;
+//   }
+//   return NULL;
+// }

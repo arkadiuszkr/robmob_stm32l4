@@ -23,7 +23,7 @@ static void _initialize();
 static void _open_MainMenu();
 
 // -------------------- Functions --------------------
-int main() {
+int main_Robot() {
     _initialize();
     _open_MainMenu(); // Open main menu on startup
 

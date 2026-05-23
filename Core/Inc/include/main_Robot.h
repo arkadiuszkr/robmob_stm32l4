@@ -14,5 +14,6 @@ extern MainDisplayDrivers *_mainDisplayDrivers;
 void main_chooseMainMode_Official(); 
 void main_chooseMainMode_Hidden(); 
 void main_chooseMainMode_AGFull(); 
+int main_Robot();
 
 #endif
