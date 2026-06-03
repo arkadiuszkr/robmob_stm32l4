@@ -27,17 +27,6 @@ int main_Robot() {
     _initialize();
     _open_MainMenu(); // Open main menu on startup
 
-    // set_terminal_nonblocking_mode(true); // For using terminal for input
-
-    // pthread_t input_terminal_tid, reprint_menu_tid;
-    // pthread_create(&input_terminal_tid, NULL, input_inputReadThread_terminal, NULL);
-    // pthread_create(&reprint_menu_tid, NULL, reprint_menu_cache, NULL);
-
-    // pthread_join(input_terminal_tid, NULL);
-    // pthread_join(reprint_menu_tid, NULL);
-
-    // set_terminal_nonblocking_mode(false);
-
     return 0;
 }
 
