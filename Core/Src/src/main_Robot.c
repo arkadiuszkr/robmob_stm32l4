@@ -6,10 +6,10 @@
 #include <unistd.h>
 
 #include "cli_menu.h"
-#include "input.h"
 #include "main_Robot.h"
 #include "start_init_menu.h"
 #include "start_init_stm32l4.h"
+#include "lcd_ILI9488.h"
 
 // -------------------- Global variables --------------------
 MainDisplayDrivers *_mainDisplayDrivers = NULL;
@@ -26,6 +26,9 @@ static void _open_MainMenu();
 int main_Robot() {
     _initialize();
     _open_MainMenu(); // Open main menu on startup
+
+    // ---------- Test LCD screen ----------
+    _lcd_drawTestScreen();
 
     return 0;
 }
