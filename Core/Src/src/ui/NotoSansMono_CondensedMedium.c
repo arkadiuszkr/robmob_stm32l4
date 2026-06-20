@@ -293,8 +293,13 @@ static const GlyphMap glyph_map[] = {
 
     {'|', 56}};
 
+/*-----------------
+ *  PUBLIC FONT
+ *----------------*/
+
 Font NanoSansMono_CondensedMedium = {.bitmapArray = glyph_bitmap,
-                                           .glyphMap = glyph_map,
-                                           .glyphs = glyph_dsc,
-                                           .height = 24,
-                                           .glyphMapCount = sizeof(glyph_map) / sizeof(glyph_map[0])};
+                                     .glyphMap = glyph_map,
+                                     .glyphs = glyph_dsc,
+                                     .line_height = 24, /*The maximum line height required by the font*/
+                                     .base_line = 6,    /*Baseline measured from the bottom of the line*/
+                                     .glyphMapCount = sizeof(glyph_map) / sizeof(glyph_map[0])};

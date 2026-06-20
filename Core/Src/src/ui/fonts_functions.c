@@ -12,7 +12,7 @@ const Glyph *getGlyphFromChar(char character, const Font *font) {
 }
 
 void calculateMaxFontHeight(Font *font) {
-    uint8_t maxHeight = font->height;
+    uint8_t maxHeight = font->line_height;
     uint8_t currentHeight = 0;
     for (int i = 1; i <= font->glyphMapCount; i++) {
         currentHeight = (int)(font->glyphs[i].box_h * 0.5 + 0.5) + abs(font->glyphs[i].ofs_y);

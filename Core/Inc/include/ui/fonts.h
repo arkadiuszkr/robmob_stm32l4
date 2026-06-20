@@ -18,7 +18,8 @@ typedef struct {
 } GlyphMap;
 
 typedef struct {
-    uint8_t height;
+    uint8_t line_height;
+    uint8_t base_line;
     uint8_t maxHeight_forClipping;
     uint8_t glyphMapCount;
     const uint8_t *bitmapArray;
