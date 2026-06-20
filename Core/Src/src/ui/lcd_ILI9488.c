@@ -1,6 +1,7 @@
-#include <stdint.h>
+#include <stdio.h>
 
-#include "cli_menu.h"
+#include "fonts.h"
+#include "freertos_header.h"
 #include "lcd_ILI9488.h"
 #include "main.h"
 #include "spi.h"
@@ -9,13 +10,47 @@
 #include "stm32l4xx_hal_gpio.h"
 #include "stm32l4xx_hal_spi.h"
 
+// ---------- Colors ----------
+const static uint8_t _Color_Background[3] = {14, 14, 16};
+const static uint8_t _Color_MenuText[3] = {54, 54, 54};
+// ---------- LCD Command registers ----------
+#define LCD_Cmd_ColumnAddressSet 0x2A
+#define LCD_Cmd_PageAddressSet 0x2B
+#define LCD_Cmd_MemoryWrite 0x2C
 // ---------- Definitions, global variables ----------
 #define LCD_Width 320
 #define LCD_Height 480
 #define LCD_WindowedLineBuffer_PixelLines 12
-static uint8_t frameBuffer_Pixels[LCD_Width * LCD_WindowedLineBuffer_PixelLines];
+static uint8_t frontBuffer_Pixels[LCD_Width * LCD_WindowedLineBuffer_PixelLines][3];
+static uint8_t backBuffer_Pixels[LCD_Width * LCD_WindowedLineBuffer_PixelLines][3];
 
-#define LCD_WindowedLineBuffer_MenuLines 2
+bool lcd_requestedReprint = false;
+
+#define LCD_VisualLine_MAXLength 100
+typedef struct {
+    char string[LCD_VisualLine_MAXLength];
+    Font *font;
+    uint16_t y0_bounds;
+    uint16_t y1_bounds;
+    uint16_t y0_equalSpacing;
+    uint16_t y1_equalSpacing;
+} LCD_VisualLine;
+
+#define LCD_WindowedLineBuffer_MaxMenuLines 30
+struct Snapshot {
+    int lineCount;
+    LCD_VisualLine menuLines[LCD_WindowedLineBuffer_MaxMenuLines];
+};
+struct Snapshot _mainSnapshot;
+
+struct ScreenPadding {
+    uint8_t top;
+    uint8_t bottom;
+    uint8_t left;
+    uint8_t right;
+};
+static struct ScreenPadding _LCD_ScreenPadding = {.top = 10, .bottom = 10, .left = 5, .right = 5};
+#define LCD_LinePadding 2;
 
 // ---------- Forward declarations ----------
 static void lcd_Select();
@@ -30,6 +65,8 @@ static void LCD_DisplayInversion();
 static void LCD_FrameRateControl();
 static void LCD_Gamma();
 void LCD_PaintRectangle(uint16_t x0, uint16_t y0, uint16_t width, uint16_t height, uint16_t color);
+static void LCD_SetWindow(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1);
+static void lcd_writeSPI_command(uint8_t cmd);
 
 void _lcd_initialize() {
     LCD_Reset();
@@ -47,13 +84,178 @@ void _lcd_initialize() {
 
     HAL_GPIO_WritePin(SPI2_LCD_BL_GPIO_Port, SPI2_LCD_BL_Pin, GPIO_PIN_SET);
     LCD_DisplayON();
+    HAL_GPIO_WritePin(SPI2_LCD_DC_GPIO_Port, SPI2_LCD_DC_Pin, GPIO_PIN_RESET);
     lcd_Unselect();
+
+    calculateMaxFontHeight(&NanoSansMono_CondensedMedium);
 }
 
-void _lcd_drawMenu(Menu *menu) {}
-void _lcd_drawLine(const char lineString[], Font *font) {}
+void _lcd_clear() {
+    // Take binary semaphore for writing/reading menu snapshot
+    osSemaphoreAcquire(semBin_menuSnapshotHandle, HAL_MAX_DELAY);
+
+    _mainSnapshot.lineCount = 0;
+}
+void _lcd_addToSnapshot_print() {
+    // Add to last line before '\n' (if exists)
+}
+void _lcd_addToSnapshot_printLine(const char *str) {
+    // Add a line with normal font
+    if (_mainSnapshot.lineCount > LCD_WindowedLineBuffer_MaxMenuLines - 1) return;
+
+    LCD_VisualLine newLine;
+    snprintf(newLine.string, LCD_VisualLine_MAXLength, "%s\r\n", str);
+    newLine.font = &NanoSansMono_CondensedMedium;
+    uint16_t y_lineStart = _LCD_ScreenPadding.top;
+    if (_mainSnapshot.lineCount > 0) {
+        y_lineStart = _mainSnapshot.menuLines[_mainSnapshot.lineCount - 1].y1_equalSpacing;
+    }
+    y_lineStart += LCD_LinePadding;
+    uint8_t fontHeight = NanoSansMono_CondensedMedium.height;
+    float extraFloat = NanoSansMono_CondensedMedium.maxHeight_forClipping - fontHeight;
+    uint8_t extra = (uint8_t)(extraFloat * 0.5 + 0.5);
+    newLine.y1_equalSpacing = y_lineStart + fontHeight - 1;
+    newLine.y0_equalSpacing = y_lineStart;
+    int16_t y0 = y_lineStart - extra;
+    if (y0 < 0) y0 = 0;
+    newLine.y0_bounds = (uint16_t)y0;
+    newLine.y1_bounds = newLine.y1_equalSpacing + extra;
+
+    _mainSnapshot.menuLines[_mainSnapshot.lineCount] = newLine;
+    _mainSnapshot.lineCount++;
+}
+void _lcd_addToSnapshot_printBold(const char *str) {
+    _lcd_addToSnapshot_printLine(str);
+    return;
+
+    // Add a line with bold font
+    if (_mainSnapshot.lineCount > LCD_WindowedLineBuffer_MaxMenuLines - 1) return;
+
+    LCD_VisualLine newLine;
+    snprintf(newLine.string, LCD_VisualLine_MAXLength, "%s\r\n", str);
+    newLine.font = NULL;
+    _mainSnapshot.menuLines[_mainSnapshot.lineCount] = newLine;
+    _mainSnapshot.lineCount++;
+}
+void _lcd_drawMenu() {
+    // Set trigger for LCD transmit
+    lcd_requestedReprint = true;
+
+    // Give binary semaphore for writing/reading menu snapshot
+    osSemaphoreRelease(semBin_menuSnapshotHandle);
+}
+
+static inline void assignPixel_18bit(const uint8_t *RGB, uint8_t *pixelStart) {
+    pixelStart[0] = RGB[0];
+    pixelStart[1] = RGB[1];
+    pixelStart[2] = RGB[2];
+}
+void generatePixelBuffer(int window_y0, int window_y1) {
+    // Set background color for the whole buffer
+    uint16_t bufferSize = LCD_Width * LCD_WindowedLineBuffer_PixelLines;
+    for (int i = 0; i < bufferSize; i++) {
+        assignPixel_18bit(_Color_Background, backBuffer_Pixels[i]);
+    }
+
+    // Process glyphs and modify value for each character in the buffer
+    LCD_VisualLine *currentLine;
+    for (int i = 0; i < _mainSnapshot.lineCount; i++) {
+        currentLine = &_mainSnapshot.menuLines[i];
+        if (currentLine->y1_bounds < window_y0) continue;
+        if (currentLine->y0_bounds > window_y1) break;
+
+        const Font *currentFont = currentLine->font;
+        const char *ch_ptr = currentLine->string;
+        Glyph *glyph;
+        uint8_t *bitmap;
+        uint16_t bitmapStartPosition_x = _LCD_ScreenPadding.left;
+        uint16_t bitmapStartPosition_y = currentLine->y0_equalSpacing;
+        uint8_t advance = (currentFont->glyphs[1].adv_w >> 4) + 1;
+        while (*ch_ptr && *ch_ptr != '\r' && *ch_ptr != '\n') {
+            if (bitmapStartPosition_x + advance > LCD_Width - _LCD_ScreenPadding.right) break;
+            char character = *ch_ptr;
+            ch_ptr++;
+            glyph = getGlyphFromChar(character, currentFont);
+            bitmap = &currentFont->bitmapArray[glyph->bitmap_index];
+
+            uint8_t currentByte = *bitmap++;
+            uint8_t mask = 0b10000000;
+            uint16_t pixelAbsolutePosition_x = 0;
+            uint16_t pixelAbsolutePosition_y = 0;
+            uint16_t pixelBufferPosition_y = 0;
+            uint8_t *pixelStartBuffer;
+            for (uint8_t row = 0; row < glyph->box_h; row++) {
+                for (uint8_t col = 0; col < glyph->box_w; col++) {
+                    if (currentByte & mask) {
+                        pixelAbsolutePosition_y = bitmapStartPosition_y - glyph->ofs_y + row;
+                        if (pixelAbsolutePosition_y < currentLine->y0_equalSpacing) continue;
+                        if (pixelAbsolutePosition_y > currentLine->y1_equalSpacing) continue;
+
+                        pixelAbsolutePosition_x = bitmapStartPosition_x + glyph->ofs_x + col;
+                        pixelBufferPosition_y = pixelAbsolutePosition_y - currentLine->y0_equalSpacing;
+
+                        if (pixelAbsolutePosition_x > LCD_Width - 1) continue;
+                        if (pixelBufferPosition_y > LCD_WindowedLineBuffer_PixelLines) continue;
+                        uint16_t index = pixelBufferPosition_y * LCD_Width + pixelAbsolutePosition_x;
+                        if (index > LCD_Width * LCD_WindowedLineBuffer_PixelLines - 1)
+                            index = LCD_Width * LCD_WindowedLineBuffer_PixelLines - 1;
+                        pixelStartBuffer = backBuffer_Pixels[index];
+                        assignPixel_18bit(_Color_MenuText, pixelStartBuffer);
+                    }
+                    mask >>= 1;
+
+                    if (mask == 0) {
+                        currentByte = *bitmap++;
+                        mask = 0b10000000;
+                    }
+                }
+            }
+
+            // Add advance to starting pixel x
+            bitmapStartPosition_x += advance;
+        }
+    }
+}
+void transmitSPI_PixelBuffer() {
+    // Wait for DMA release (through task notify / pooling)
+
+    // Change front and back buffer pointers
+
+    // Transmits the whole buffer
+    lcd_writeSPI_command(LCD_Cmd_MemoryWrite);
+    HAL_GPIO_WritePin(SPI2_LCD_DC_GPIO_Port, SPI2_LCD_DC_Pin, GPIO_PIN_SET);
+    HAL_SPI_Transmit(&hspi2, (uint8_t *)backBuffer_Pixels, LCD_Width * LCD_WindowedLineBuffer_PixelLines * 3,
+                     HAL_MAX_DELAY);
+    HAL_GPIO_WritePin(SPI2_LCD_DC_GPIO_Port, SPI2_LCD_DC_Pin, GPIO_PIN_RESET);
+}
+void _lcd_drawMenuThroughSPI() {
+    osSemaphoreAcquire(semBin_menuSnapshotHandle, HAL_MAX_DELAY);
+    lcd_requestedReprint = false;
+
+    // Convert created line snapshot to pixels for window in a loop
+    // first test without DMA
+    lcd_Select();
+    int startPixel = 0;
+    while (startPixel < LCD_Height) {
+        int endPixel = startPixel + LCD_WindowedLineBuffer_PixelLines - 1;
+        if (endPixel > LCD_Height - 1) endPixel = LCD_Height - 1;
+
+        // if (!dma_finished) osDelay(2);
+        // or better wait for task notification from dma isr
+        generatePixelBuffer(startPixel, endPixel);
+        LCD_SetWindow(0, startPixel, LCD_Width - 1, endPixel);
+        transmitSPI_PixelBuffer();
+        // osDelay(500);
+
+        startPixel = endPixel + 1;
+    }
+    lcd_Unselect();
+
+    osSemaphoreRelease(semBin_menuSnapshotHandle);
+}
 
 void _lcd_drawTestScreen() {
+    return;
     lcd_Select();
     LCD_PaintRectangle(0, 0, 100, 150, 0xF800);
     lcd_Unselect();
@@ -70,10 +272,6 @@ static void lcd_writeSPI_data(const void *data, uint32_t length) {
 static void lcd_Select() { HAL_GPIO_WritePin(SPI2_LCD_CS_GPIO_Port, SPI2_LCD_CS_Pin, GPIO_PIN_RESET); }
 static void lcd_Unselect() { HAL_GPIO_WritePin(SPI2_LCD_CS_GPIO_Port, SPI2_LCD_CS_Pin, GPIO_PIN_SET); }
 
-// ---------- LCD Command registers ----------
-#define LCD_Cmd_ColumnAddressSet 0x2A
-#define LCD_Cmd_PageAddressSet 0x2B
-#define LCD_Cmd_MemoryWrite 0x2C
 // ---------- LCD pixel write functions ----------
 static uint8_t LS_BYTE(uint16_t value) { return value & 0xFF; }
 static uint8_t MS_BYTE(uint16_t value) { return (value >> 8) & 0xFF; }

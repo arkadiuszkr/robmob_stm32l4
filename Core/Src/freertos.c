@@ -29,6 +29,7 @@
 #include "input.h"
 #include "main_Robot.h"
 #include "thread_settings_stm32l4.h"
+#include "lcd_ILI9488.h"
 #include "usart.h"
 #include <stdio.h>
 #include <string.h>
@@ -36,6 +37,7 @@
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
+typedef StaticSemaphore_t osStaticSemaphoreDef_t;
 /* USER CODE BEGIN PTD */
 
 /* USER CODE END PTD */
@@ -65,7 +67,7 @@ const osThreadAttr_t TaskN_UARTDebug_attributes = {
 osThreadId_t TaskN_Menu_ReprHandle;
 const osThreadAttr_t TaskN_Menu_Repr_attributes = {
   .name = "TaskN_Menu_Repr",
-  .stack_size = 512 * 4,
+  .stack_size = 1024 * 4,
   .priority = (osPriority_t) osPriorityLow,
 };
 /* Definitions for TaskN_InputComp */
@@ -74,6 +76,13 @@ const osThreadAttr_t TaskN_InputComp_attributes = {
   .name = "TaskN_InputComp",
   .stack_size = 512 * 4,
   .priority = (osPriority_t) osPriorityLow,
+};
+/* Definitions for TaskN_SPI_LCD */
+osThreadId_t TaskN_SPI_LCDHandle;
+const osThreadAttr_t TaskN_SPI_LCD_attributes = {
+  .name = "TaskN_SPI_LCD",
+  .stack_size = 1024 * 4,
+  .priority = (osPriority_t) osPriorityLow4,
 };
 /* Definitions for Queue_UART_SendDebug */
 osMessageQueueId_t Queue_UART_SendDebugHandle;
@@ -85,6 +94,14 @@ osMessageQueueId_t Queue_InputActionHandle;
 const osMessageQueueAttr_t Queue_InputAction_attributes = {
   .name = "Queue_InputAction"
 };
+/* Definitions for semBin_menuSnapshot */
+osSemaphoreId_t semBin_menuSnapshotHandle;
+osStaticSemaphoreDef_t semBin_menuSnapshotControlBlock;
+const osSemaphoreAttr_t semBin_menuSnapshot_attributes = {
+  .name = "semBin_menuSnapshot",
+  .cb_mem = &semBin_menuSnapshotControlBlock,
+  .cb_size = sizeof(semBin_menuSnapshotControlBlock),
+};
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
@@ -94,6 +111,7 @@ const osMessageQueueAttr_t Queue_InputAction_attributes = {
 void Task_UART_SendDebug(void *argument);
 void Task_Menu_Reprint(void *argument);
 void Task_InputCompute(void *argument);
+void Task_TransmitSPI_LCD(void *argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
@@ -110,6 +128,10 @@ void MX_FREERTOS_Init(void) {
   /* USER CODE BEGIN RTOS_MUTEX */
     /* add mutexes, ... */
   /* USER CODE END RTOS_MUTEX */
+
+  /* Create the semaphores(s) */
+  /* creation of semBin_menuSnapshot */
+  semBin_menuSnapshotHandle = osSemaphoreNew(1, 1, &semBin_menuSnapshot_attributes);
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
     /* add semaphores, ... */
@@ -139,6 +161,9 @@ void MX_FREERTOS_Init(void) {
 
   /* creation of TaskN_InputComp */
   TaskN_InputCompHandle = osThreadNew(Task_InputCompute, NULL, &TaskN_InputComp_attributes);
+
+  /* creation of TaskN_SPI_LCD */
+  TaskN_SPI_LCDHandle = osThreadNew(Task_TransmitSPI_LCD, NULL, &TaskN_SPI_LCD_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
     /* add threads, ... */
@@ -208,6 +233,7 @@ void Task_Menu_Reprint(void *argument)
         // time(&now);
         // printf("Reprinting requested, %s\n", ctime(&now));
         _currentMenu->reprintRequested = false;
+        HAL_Delay(4000);
 
         osDelay(SLEEP_MS_MENU_REPRINT);
         continue;
@@ -241,6 +267,26 @@ void Task_InputCompute(void *argument)
         }
     }
   /* USER CODE END Task_InputCompute */
+}
+
+/* USER CODE BEGIN Header_Task_TransmitSPI_LCD */
+/**
+ * @brief Function implementing the TaskN_SPI_LCD thread.
+ * @param argument: Not used
+ * @retval None
+ */
+/* USER CODE END Header_Task_TransmitSPI_LCD */
+void Task_TransmitSPI_LCD(void *argument)
+{
+  /* USER CODE BEGIN Task_TransmitSPI_LCD */
+    /* Infinite loop */
+    for (;;) {
+        if (!lcd_requestedReprint) {
+            osDelay(50);
+        }
+        _lcd_drawMenuThroughSPI();
+    }
+  /* USER CODE END Task_TransmitSPI_LCD */
 }
 
 /* Private application code --------------------------------------------------*/

@@ -4,6 +4,7 @@
 #include "cmsis_os.h"
 #include "freertos_header.h"
 #include <displayDriver.h>
+#include "lcd_ILI9488.h"
 
 const char *clear = "\033[2J\033[H";
 void terminalUART_clear() {
@@ -33,9 +34,20 @@ DisplayDriver TERMINAL_UART_DRIVER = {
     .printLine = terminalUART_printLine,
     .printBoldLine = terminalUART_printBoldLine,
     .clear = terminalUART_clear,
+    .menuReadyToPrint = NULL,
+};
+
+
+DisplayDriver LCD_SPI_ILI9488_DRIVER = {
+    .print = _lcd_addToSnapshot_print,
+    .printLine = _lcd_addToSnapshot_printLine,
+    .printBoldLine = _lcd_addToSnapshot_printBold,
+    .clear = _lcd_clear,
+    .menuReadyToPrint = _lcd_drawMenu,
 };
 
 DisplayDriver *getDisplayDriver(DisplayType displayType) {
     if (displayType == TERMINAL_UART) return &TERMINAL_UART_DRIVER;
+    if (displayType == LCD_SPI) return &LCD_SPI_ILI9488_DRIVER;
     return NULL;
 }

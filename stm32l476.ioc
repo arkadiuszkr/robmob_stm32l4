@@ -2,10 +2,11 @@
 CAD.formats=
 CAD.pinconfig=
 CAD.provider=
+FREERTOS.BinarySemaphores01=semBin_menuSnapshot,Static,semBin_menuSnapshotControlBlock,Available
 FREERTOS.FootprintOK=true
-FREERTOS.IPParameters=Tasks01,configTOTAL_HEAP_SIZE,FootprintOK,Queues01
+FREERTOS.IPParameters=Tasks01,configTOTAL_HEAP_SIZE,FootprintOK,Queues01,BinarySemaphores01
 FREERTOS.Queues01=Queue_UART_SendDebug,16,UARTMessage,0,Dynamic,NULL,NULL;Queue_InputAction,16,InputAction_Press,0,Dynamic,NULL,NULL
-FREERTOS.Tasks01=TaskN_UARTDebug,24,1024,Task_UART_SendDebug,Default,NULL,Dynamic,NULL,NULL;TaskN_Menu_Repr,8,512,Task_Menu_Reprint,Default,NULL,Dynamic,NULL,NULL;TaskN_InputComp,8,512,Task_InputCompute,Default,NULL,Dynamic,NULL,NULL
+FREERTOS.Tasks01=TaskN_UARTDebug,24,1024,Task_UART_SendDebug,Default,NULL,Dynamic,NULL,NULL;TaskN_Menu_Repr,8,1024,Task_Menu_Reprint,Default,NULL,Dynamic,NULL,NULL;TaskN_InputComp,8,512,Task_InputCompute,Default,NULL,Dynamic,NULL,NULL;TaskN_SPI_LCD,12,1024,Task_TransmitSPI_LCD,Default,NULL,Dynamic,NULL,NULL
 FREERTOS.configTOTAL_HEAP_SIZE=20000
 File.Version=6
 GPIO.groupedBy=Group By Peripherals

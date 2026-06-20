@@ -151,6 +151,8 @@ void menu_print(Menu *menu, DisplayDriver *displayDriver) {
 
         free(string);
         string = NULL;
+
+        if (displayDriver->menuReadyToPrint != NULL) displayDriver->menuReadyToPrint(menu);
     }
 }
 
@@ -167,7 +169,7 @@ void menu_clear(DisplayDriver *driverArray, size_t driverCount) {
 //     static struct termios oldt;
 //     static bool initialized = false;
 //     static int old_flags;
-// 
+//
 //     if (enable) {
 //         if (!initialized) {
 //             tcgetattr(STDIN_FILENO, &oldt);
