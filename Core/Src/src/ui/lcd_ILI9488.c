@@ -161,16 +161,15 @@ void generatePixelBuffer(int window_y0, int window_y1) {
     LCD_VisualLine *currentLine;
     for (int i = 0; i < _mainSnapshot.lineCount; i++) {
         currentLine = &_mainSnapshot.menuLines[i];
-        //if (currentLine->y1_bounds < window_y0) continue;
-        //if (currentLine->y0_bounds > window_y1) break;
+        // if (currentLine->y1_bounds < window_y0) continue;
+        // if (currentLine->y0_bounds > window_y1) break;
 
         const Font *currentFont = currentLine->font;
         const char *ch_ptr = currentLine->string;
         Glyph *glyph;
         uint8_t *bitmap;
         uint16_t bitmapStartPosition_x = _LCD_ScreenPadding.left;
-        uint16_t bitmapStartPosition_y = currentLine->y0_equalSpacing;
-        uint16_t baseline_y = currentLine->y0_equalSpacing;
+        uint16_t baseline_y;
         uint8_t advance = (currentFont->glyphs[1].adv_w >> 4) + 1;
         while (*ch_ptr && *ch_ptr != '\r' && *ch_ptr != '\n') {
             if (bitmapStartPosition_x + advance > LCD_Width - _LCD_ScreenPadding.right) break;
@@ -185,11 +184,11 @@ void generatePixelBuffer(int window_y0, int window_y1) {
             uint16_t pixelAbsolutePosition_y = 0;
             uint16_t pixelBufferPosition_y = 0;
             uint8_t *pixelStartBuffer;
-            baseline_y = bitmapStartPosition_y + currentFont->line_height - currentFont->base_line;
+            baseline_y = currentLine->y0_equalSpacing + currentFont->line_height - currentFont->base_line;
             for (uint8_t row = 0; row < glyph->box_h; row++) {
                 for (uint8_t col = 0; col < glyph->box_w; col++) {
                     if (currentByte & mask) {
-                        pixelAbsolutePosition_y = baseline_y + glyph->ofs_y + row;
+                        pixelAbsolutePosition_y = baseline_y - glyph->ofs_y - glyph->box_h + row;
                         if (pixelAbsolutePosition_y < window_y0) continue;
                         if (pixelAbsolutePosition_y > window_y1) continue;
 
