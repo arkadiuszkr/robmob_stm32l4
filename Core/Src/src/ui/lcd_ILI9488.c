@@ -20,7 +20,7 @@ const static uint8_t _Color_MenuText[3] = {54, 54, 54};
 // ---------- Definitions, global variables ----------
 #define LCD_Width 320
 #define LCD_Height 480
-#define LCD_WindowedLineBuffer_PixelLines 20
+#define LCD_WindowedLineBuffer_PixelLines 40
 // static uint8_t frontBuffer_Pixels[LCD_Width * LCD_WindowedLineBuffer_PixelLines][3];
 static uint8_t backBuffer_Pixels[LCD_Width * LCD_WindowedLineBuffer_PixelLines][3];
 
@@ -38,10 +38,11 @@ typedef struct {
 
 #define LCD_WindowedLineBuffer_MaxMenuLines 30
 struct Snapshot {
-    int lineCount;
+    int16_t lineCount;
+    int16_t dirtyRegion_y1;
     LCD_VisualLine menuLines[LCD_WindowedLineBuffer_MaxMenuLines];
 };
-struct Snapshot _mainSnapshot;
+struct Snapshot _mainSnapshot = {.dirtyRegion_y1 = LCD_Height + 100};
 
 struct ScreenPadding {
     uint8_t top;
@@ -246,7 +247,10 @@ void _lcd_drawMenuThroughSPI() {
     // first test without DMA
     lcd_Select();
     int16_t startPixel = 0;
-    while (startPixel < LCD_Height) {
+    int16_t lastLine_y1 = _mainSnapshot.menuLines[_mainSnapshot.lineCount - 1].y1_bounds;
+    _mainSnapshot.dirtyRegion_y1 =
+        _mainSnapshot.dirtyRegion_y1 > lastLine_y1 ? _mainSnapshot.dirtyRegion_y1 : lastLine_y1;
+    while (startPixel < LCD_Height && startPixel < _mainSnapshot.dirtyRegion_y1 + 1) {
         int16_t endPixel = startPixel + LCD_WindowedLineBuffer_PixelLines - 1;
         if (endPixel > LCD_Height - 1) endPixel = LCD_Height - 1;
 
@@ -260,6 +264,7 @@ void _lcd_drawMenuThroughSPI() {
         startPixel = endPixel + 1;
     }
     lcd_Unselect();
+    _mainSnapshot.dirtyRegion_y1 = lastLine_y1;
 
     osSemaphoreRelease(semBin_menuSnapshotHandle);
 }

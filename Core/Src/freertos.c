@@ -283,6 +283,7 @@ void Task_TransmitSPI_LCD(void *argument)
     for (;;) {
         if (!lcd_requestedReprint) {
             osDelay(50);
+            continue;
         }
         _lcd_drawMenuThroughSPI();
     }
