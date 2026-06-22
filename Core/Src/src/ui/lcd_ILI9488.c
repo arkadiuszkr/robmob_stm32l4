@@ -20,7 +20,7 @@ const static uint8_t _Color_MenuText[3] = {54, 54, 54};
 // ---------- Definitions, global variables ----------
 #define LCD_Width 320
 #define LCD_Height 480
-#define LCD_WindowedLineBuffer_PixelLines 50
+#define LCD_WindowedLineBuffer_PixelLines 20
 // static uint8_t frontBuffer_Pixels[LCD_Width * LCD_WindowedLineBuffer_PixelLines][3];
 static uint8_t backBuffer_Pixels[LCD_Width * LCD_WindowedLineBuffer_PixelLines][3];
 
@@ -50,7 +50,7 @@ struct ScreenPadding {
     uint8_t right;
 };
 static struct ScreenPadding _LCD_ScreenPadding = {.top = 10, .bottom = 10, .left = 5, .right = 5};
-#define LCD_LinePadding 2;
+#define LCD_LinePadding 10;
 
 // ---------- Forward declarations ----------
 static void lcd_Select();
@@ -150,7 +150,7 @@ static inline void assignPixel_18bit(const uint8_t *RGB, uint8_t *pixelStart) {
     pixelStart[1] = RGB[1];
     pixelStart[2] = RGB[2];
 }
-void generatePixelBuffer(int window_y0, int window_y1) {
+void generatePixelBuffer(int16_t window_y0, int16_t window_y1) {
     // Set background color for the whole buffer
     uint16_t bufferSize = LCD_Width * LCD_WindowedLineBuffer_PixelLines;
     for (int i = 0; i < bufferSize; i++) {
@@ -161,15 +161,15 @@ void generatePixelBuffer(int window_y0, int window_y1) {
     LCD_VisualLine *currentLine;
     for (int i = 0; i < _mainSnapshot.lineCount; i++) {
         currentLine = &_mainSnapshot.menuLines[i];
-        // if (currentLine->y1_bounds < window_y0) continue;
-        // if (currentLine->y0_bounds > window_y1) break;
+        if (currentLine->y1_bounds < window_y0) continue;
+        if (currentLine->y0_bounds > window_y1) break;
 
         const Font *currentFont = currentLine->font;
         const char *ch_ptr = currentLine->string;
         Glyph *glyph;
         uint8_t *bitmap;
-        uint16_t bitmapStartPosition_x = _LCD_ScreenPadding.left;
-        uint16_t baseline_y;
+        uint16_t bitmapStartPosition_x = _LCD_ScreenPadding.left - 1;
+        int16_t baseline_y;
         uint8_t advance = (currentFont->glyphs[1].adv_w >> 4) + 1;
         while (*ch_ptr && *ch_ptr != '\r' && *ch_ptr != '\n') {
             if (bitmapStartPosition_x + advance > LCD_Width - _LCD_ScreenPadding.right) break;
@@ -178,37 +178,46 @@ void generatePixelBuffer(int window_y0, int window_y1) {
             glyph = getGlyphFromChar(character, currentFont);
             bitmap = &currentFont->bitmapArray[glyph->bitmap_index];
 
+            bool debugged = false;
+
             uint8_t currentByte = *bitmap++;
             uint8_t mask = 0b10000000;
-            uint16_t pixelAbsolutePosition_x = 0;
-            uint16_t pixelAbsolutePosition_y = 0;
-            uint16_t pixelBufferPosition_y = 0;
+            int16_t pixelAbsolutePosition_x = 0;
+            int16_t pixelAbsolutePosition_y = 0;
+            int16_t pixelBufferPosition_y = 0;
             uint8_t *pixelStartBuffer;
             baseline_y = currentLine->y0_equalSpacing + currentFont->line_height - currentFont->base_line;
             for (uint8_t row = 0; row < glyph->box_h; row++) {
                 for (uint8_t col = 0; col < glyph->box_w; col++) {
-                    if (currentByte & mask) {
-                        pixelAbsolutePosition_y = baseline_y - glyph->ofs_y - glyph->box_h + row;
-                        if (pixelAbsolutePosition_y < window_y0) continue;
-                        if (pixelAbsolutePosition_y > window_y1) continue;
-
-                        pixelAbsolutePosition_x = bitmapStartPosition_x + glyph->ofs_x + col;
-                        pixelBufferPosition_y = pixelAbsolutePosition_y - window_y0;
-
-                        if (pixelAbsolutePosition_x > LCD_Width - 1) continue;
-                        if (pixelBufferPosition_y > LCD_WindowedLineBuffer_PixelLines - 1) continue;
-                        uint16_t index = pixelBufferPosition_y * LCD_Width + pixelAbsolutePosition_x;
-                        if (index > LCD_Width * LCD_WindowedLineBuffer_PixelLines - 1)
-                            index = LCD_Width * LCD_WindowedLineBuffer_PixelLines - 1;
-                        pixelStartBuffer = backBuffer_Pixels[index];
-                        assignPixel_18bit(_Color_MenuText, pixelStartBuffer);
-                    }
-                    mask >>= 1;
-
                     if (mask == 0) {
                         currentByte = *bitmap++;
                         mask = 0b10000000;
                     }
+
+                    bool pixelOn = currentByte & mask;
+                    mask >>= 1;
+                    if (!pixelOn) continue;
+
+                    pixelAbsolutePosition_y = baseline_y - glyph->ofs_y - (int16_t)glyph->box_h + (int16_t)row - 1;
+                    if (pixelAbsolutePosition_y < window_y0) continue;
+                    if (pixelAbsolutePosition_y > window_y1) continue;
+
+                    pixelAbsolutePosition_x = bitmapStartPosition_x + glyph->ofs_x + col;
+                    pixelBufferPosition_y = pixelAbsolutePosition_y - window_y0;
+
+                    if (character == '>' && !debugged) {
+                        debugged = true;
+                        // debug
+                    }
+
+                    if (pixelAbsolutePosition_x > LCD_Width - 1) continue;
+                    // if (pixelBufferPosition_y < 0) continue;
+                    if (pixelBufferPosition_y > LCD_WindowedLineBuffer_PixelLines - 1) continue;
+                    uint16_t index = pixelBufferPosition_y * LCD_Width + pixelAbsolutePosition_x;
+                    if (index > LCD_Width * LCD_WindowedLineBuffer_PixelLines - 1)
+                        index = LCD_Width * LCD_WindowedLineBuffer_PixelLines - 1;
+                    pixelStartBuffer = backBuffer_Pixels[index];
+                    assignPixel_18bit(_Color_MenuText, pixelStartBuffer);
                 }
             }
 
@@ -236,9 +245,9 @@ void _lcd_drawMenuThroughSPI() {
     // Convert created line snapshot to pixels for window in a loop
     // first test without DMA
     lcd_Select();
-    int startPixel = 0;
+    int16_t startPixel = 0;
     while (startPixel < LCD_Height) {
-        int endPixel = startPixel + LCD_WindowedLineBuffer_PixelLines - 1;
+        int16_t endPixel = startPixel + LCD_WindowedLineBuffer_PixelLines - 1;
         if (endPixel > LCD_Height - 1) endPixel = LCD_Height - 1;
 
         // if (!dma_finished) osDelay(2);

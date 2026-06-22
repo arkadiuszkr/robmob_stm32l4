@@ -278,7 +278,7 @@ static const Glyph glyph_dsc[] = {
     {.bitmap_index = 1099, .adv_w = 204, .box_w = 11, .box_h = 13, .ofs_x = 1, .ofs_y = 0},
     {.bitmap_index = 1117, .adv_w = 204, .box_w = 12, .box_h = 19, .ofs_x = 0, .ofs_y = -6},
     {.bitmap_index = 1146, .adv_w = 204, .box_w = 9, .box_h = 13, .ofs_x = 2, .ofs_y = 0},
-    {.bitmap_index = 1161, .adv_w = 204, .box_w = 2, .box_h = 24, .ofs_x = 5, .ofs_y = -6}};
+    {.bitmap_index = 1161, .adv_w = 204, .box_w = 2, .box_h = 24, .ofs_x = 5, .ofs_y = -4}};
 
 static const GlyphMap glyph_map[] = {
     {' ', 1},  {'*', 2},  {'>', 3},
