@@ -233,7 +233,6 @@ void Task_Menu_Reprint(void *argument)
         // time(&now);
         // printf("Reprinting requested, %s\n", ctime(&now));
         _currentMenu->reprintRequested = false;
-        HAL_Delay(4000);
 
         osDelay(SLEEP_MS_MENU_REPRINT);
         continue;

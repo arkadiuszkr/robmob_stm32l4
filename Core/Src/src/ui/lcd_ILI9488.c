@@ -1,4 +1,6 @@
+#include <stddef.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "fonts.h"
 #include "freertos_header.h"
@@ -29,6 +31,7 @@ bool lcd_requestedReprint = false;
 #define LCD_VisualLine_MAXLength 100
 typedef struct {
     char string[LCD_VisualLine_MAXLength];
+    uint8_t x_offset;
     Font *font;
     uint16_t y0_bounds;
     uint16_t y1_bounds;
@@ -100,20 +103,24 @@ void _lcd_clear() {
 void _lcd_addToSnapshot_print() {
     // Add to last line before '\n' (if exists)
 }
-void _lcd_addToSnapshot_printLine(const char *str) {
-    // Add a line with normal font
-    if (_mainSnapshot.lineCount > LCD_WindowedLineBuffer_MaxMenuLines - 1) return;
-
+static void snapshot_addNewLine(const char *string, Font *font, size_t length, uint8_t x_offset) {
     LCD_VisualLine newLine;
-    snprintf(newLine.string, LCD_VisualLine_MAXLength, "%s\r\n", str);
-    newLine.font = &NanoSansMono_CondensedMedium;
+
+    if (length > LCD_VisualLine_MAXLength - 3) length = LCD_VisualLine_MAXLength - 3;
+    memcpy(newLine.string, string, length);
+    newLine.string[length] = '\r';
+    newLine.string[length + 1] = '\n';
+    newLine.string[length + 2] = '\0';
+    newLine.x_offset = x_offset;
+
+    newLine.font = font;
     uint16_t y_lineStart = _LCD_ScreenPadding.top;
     if (_mainSnapshot.lineCount > 0) {
         y_lineStart = _mainSnapshot.menuLines[_mainSnapshot.lineCount - 1].y1_equalSpacing;
         y_lineStart += LCD_LinePadding;
     }
-    uint8_t fontHeight = NanoSansMono_CondensedMedium.line_height;
-    float extraFloat = NanoSansMono_CondensedMedium.maxHeight_forClipping - fontHeight;
+    uint8_t fontHeight = font->line_height;
+    float extraFloat = font->maxHeight_forClipping - fontHeight;
     uint8_t extra = (uint8_t)(extraFloat * 0.5 + 0.5);
     newLine.y1_equalSpacing = y_lineStart + fontHeight - 1;
     newLine.y0_equalSpacing = y_lineStart;
@@ -125,19 +132,52 @@ void _lcd_addToSnapshot_printLine(const char *str) {
     _mainSnapshot.menuLines[_mainSnapshot.lineCount] = newLine;
     _mainSnapshot.lineCount++;
 }
-void _lcd_addToSnapshot_printBold(const char *str) {
-    _lcd_addToSnapshot_printLine(str);
-    return;
+static void snapshot_addLineWithWordWrapping(const char *str, Font *currentFont) {
+    const char *string_ptr = str;
+    char character = *string_ptr++;
 
-    // Add a line with bold font
+    uint8_t advance = (currentFont->glyphs[1].adv_w >> 4) + 1;
+    uint16_t bitmapEndPosition_x = _LCD_ScreenPadding.left - 1;
+    const char *lineStart = str;
+    const char *lastSpace = NULL;
+    uint8_t x_offset = 0;
+    for (const char *p = str; *p && *p != '\r' && *p != '\n'; ++p) {
+        bitmapEndPosition_x += advance;
+        if (*p == ' ') lastSpace = p;
+
+        if (bitmapEndPosition_x < LCD_Width - _LCD_ScreenPadding.right) continue;
+
+        if (lineStart != str) {
+            x_offset = 3 * advance;
+        } else {
+            x_offset = 0;
+        }
+        if (lastSpace != NULL) {
+            // Wrap line start to last space
+            snapshot_addNewLine(lineStart, currentFont, (size_t)(lastSpace - lineStart), x_offset);
+            lineStart = lastSpace + 1;
+            lastSpace = NULL;
+        } else {
+            // Cut the word at the character
+            snapshot_addNewLine(lineStart, currentFont, (size_t)(p - lineStart), x_offset);
+            lineStart = p + 1;
+        }
+        bitmapEndPosition_x = _LCD_ScreenPadding.left - 1;
+    }
+    if (lineStart != str) {
+        x_offset = 3 * advance;
+    } else {
+        x_offset = 0;
+    }
+    snapshot_addNewLine(lineStart, currentFont, strlen(lineStart), x_offset);
+}
+void _lcd_addToSnapshot_printLine(const char *str) {
+    // Add a line with normal font
     if (_mainSnapshot.lineCount > LCD_WindowedLineBuffer_MaxMenuLines - 1) return;
 
-    LCD_VisualLine newLine;
-    snprintf(newLine.string, LCD_VisualLine_MAXLength, "%s\r\n", str);
-    newLine.font = NULL;
-    _mainSnapshot.menuLines[_mainSnapshot.lineCount] = newLine;
-    _mainSnapshot.lineCount++;
+    snapshot_addLineWithWordWrapping(str, &NanoSansMono_CondensedMedium);
 }
+void _lcd_addToSnapshot_printBold(const char *str) { _lcd_addToSnapshot_printLine(str); }
 void _lcd_drawMenu() {
     // Set trigger for LCD transmit
     lcd_requestedReprint = true;
@@ -167,9 +207,9 @@ void generatePixelBuffer(int16_t window_y0, int16_t window_y1) {
 
         const Font *currentFont = currentLine->font;
         const char *ch_ptr = currentLine->string;
-        Glyph *glyph;
-        uint8_t *bitmap;
-        uint16_t bitmapStartPosition_x = _LCD_ScreenPadding.left - 1;
+        const Glyph *glyph;
+        const uint8_t *bitmap;
+        uint16_t bitmapStartPosition_x = _LCD_ScreenPadding.left - 1 + currentLine->x_offset;
         int16_t baseline_y;
         uint8_t advance = (currentFont->glyphs[1].adv_w >> 4) + 1;
         while (*ch_ptr && *ch_ptr != '\r' && *ch_ptr != '\n') {
