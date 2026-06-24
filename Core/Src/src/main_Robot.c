@@ -27,9 +27,6 @@ int main_Robot() {
     _initialize();
     _open_MainMenu(); // Open main menu on startup
 
-    // ---------- Test LCD screen ----------
-    _lcd_drawTestScreen();
-
     return 0;
 }
 
