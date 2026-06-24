@@ -2,15 +2,19 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "FreeRTOS.h"
 #include "fonts.h"
 #include "freertos_header.h"
 #include "lcd_ILI9488.h"
 #include "main.h"
+#include "portmacro.h"
+#include "projdefs.h"
 #include "spi.h"
 #include "stm32l4xx_hal.h"
 #include "stm32l4xx_hal_def.h"
 #include "stm32l4xx_hal_gpio.h"
 #include "stm32l4xx_hal_spi.h"
+#include "task.h"
 
 // ---------- Colors ----------
 const static uint8_t _Color_Background[3] = {14, 14, 16};
@@ -22,11 +26,14 @@ const static uint8_t _Color_MenuText[3] = {54, 54, 54};
 // ---------- Definitions, global variables ----------
 #define LCD_Width 320
 #define LCD_Height 480
-#define LCD_WindowedLineBuffer_PixelLines 40
-// static uint8_t frontBuffer_Pixels[LCD_Width * LCD_WindowedLineBuffer_PixelLines][3];
+#define LCD_WindowedLineBuffer_PixelLines 10
+static uint8_t frontBuffer_Pixels[LCD_Width * LCD_WindowedLineBuffer_PixelLines][3];
 static uint8_t backBuffer_Pixels[LCD_Width * LCD_WindowedLineBuffer_PixelLines][3];
+static uint8_t (*frontBuffer)[3] = frontBuffer_Pixels;
+static uint8_t (*backBuffer)[3] = backBuffer_Pixels;
 
 bool lcd_requestedReprint = false;
+bool _dma_busy = false;
 
 #define LCD_VisualLine_MAXLength 100
 typedef struct {
@@ -195,7 +202,7 @@ void generatePixelBuffer(int16_t window_y0, int16_t window_y1) {
     // Set background color for the whole buffer
     uint16_t bufferSize = LCD_Width * LCD_WindowedLineBuffer_PixelLines;
     for (int i = 0; i < bufferSize; i++) {
-        assignPixel_18bit(_Color_Background, backBuffer_Pixels[i]);
+        assignPixel_18bit(_Color_Background, backBuffer[i]);
     }
 
     // Process glyphs and modify value for each character in the buffer
@@ -246,18 +253,13 @@ void generatePixelBuffer(int16_t window_y0, int16_t window_y1) {
                     pixelAbsolutePosition_x = bitmapStartPosition_x + glyph->ofs_x + col;
                     pixelBufferPosition_y = pixelAbsolutePosition_y - window_y0;
 
-                    if (character == '>' && !debugged) {
-                        debugged = true;
-                        // debug
-                    }
-
                     if (pixelAbsolutePosition_x > LCD_Width - 1) continue;
                     // if (pixelBufferPosition_y < 0) continue;
                     if (pixelBufferPosition_y > LCD_WindowedLineBuffer_PixelLines - 1) continue;
                     uint16_t index = pixelBufferPosition_y * LCD_Width + pixelAbsolutePosition_x;
                     if (index > LCD_Width * LCD_WindowedLineBuffer_PixelLines - 1)
                         index = LCD_Width * LCD_WindowedLineBuffer_PixelLines - 1;
-                    pixelStartBuffer = backBuffer_Pixels[index];
+                    pixelStartBuffer = backBuffer[index];
                     assignPixel_18bit(_Color_MenuText, pixelStartBuffer);
                 }
             }
@@ -267,24 +269,40 @@ void generatePixelBuffer(int16_t window_y0, int16_t window_y1) {
         }
     }
 }
-void transmitSPI_PixelBuffer() {
-    // Wait for DMA release (through task notify / pooling)
+void DMA_Interupt_SPI2_FullTransfer() {
+    // In DMA finished interupt set _dma_busy = false and notify through TaskNotify
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+    vTaskNotifyGiveFromISR(TaskN_SPI_LCDHandle, &xHigherPriorityTaskWoken);
+    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+
+    _dma_busy = false;
+}
+void transmitSPI_PixelBuffer(int16_t startPixel, int16_t endPixel) {
+    // Wait for DMA release (through task notify if it's busy)
+    if (_dma_busy) {
+        // ulTaskNotifyTake(BaseType_t xClearCountOnExit, TickType_t xTicksToWait)
+        uint32_t n = ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    }
 
     // Change front and back buffer pointers
+    uint8_t (*temp)[3] = frontBuffer;
+    frontBuffer = backBuffer;
+    backBuffer = temp;
 
-    // Transmits the whole buffer
+    // Clear all notification for this task
+    while (ulTaskNotifyTake(pdTRUE, 0) > 0) {}
+    _dma_busy = true;
+    // Transmit the buffer
+    LCD_SetWindow(0, startPixel, LCD_Width - 1, endPixel);
     lcd_writeSPI_command(LCD_Cmd_MemoryWrite);
     HAL_GPIO_WritePin(SPI2_LCD_DC_GPIO_Port, SPI2_LCD_DC_Pin, GPIO_PIN_SET);
-    HAL_SPI_Transmit(&hspi2, (uint8_t *)backBuffer_Pixels, LCD_Width * LCD_WindowedLineBuffer_PixelLines * 3,
-                     HAL_MAX_DELAY);
-    HAL_GPIO_WritePin(SPI2_LCD_DC_GPIO_Port, SPI2_LCD_DC_Pin, GPIO_PIN_RESET);
+    HAL_SPI_Transmit_DMA(&hspi2, (uint8_t *)frontBuffer, LCD_Width * LCD_WindowedLineBuffer_PixelLines * 3);
 }
 void _lcd_drawMenuThroughSPI() {
     osSemaphoreAcquire(semBin_menuSnapshotHandle, HAL_MAX_DELAY);
     lcd_requestedReprint = false;
 
-    // Convert created line snapshot to pixels for window in a loop
-    // first test without DMA
+    // Convert created line snapshot to pixels for window in a loop and transmit
     lcd_Select();
     int16_t startPixel = 0;
     int16_t lastLine_y1 = _mainSnapshot.menuLines[_mainSnapshot.lineCount - 1].y1_bounds;
@@ -294,15 +312,17 @@ void _lcd_drawMenuThroughSPI() {
         int16_t endPixel = startPixel + LCD_WindowedLineBuffer_PixelLines - 1;
         if (endPixel > LCD_Height - 1) endPixel = LCD_Height - 1;
 
-        // if (!dma_finished) osDelay(2);
-        // or better wait for task notification from dma isr
         generatePixelBuffer(startPixel, endPixel);
-        LCD_SetWindow(0, startPixel, LCD_Width - 1, endPixel);
-        transmitSPI_PixelBuffer();
+        transmitSPI_PixelBuffer(startPixel, endPixel);
         // osDelay(500);
 
         startPixel = endPixel + 1;
     }
+    // Wait for DMA to finish before Unselect
+    if (_dma_busy) {
+        uint32_t n = ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    }
+    HAL_GPIO_WritePin(SPI2_LCD_DC_GPIO_Port, SPI2_LCD_DC_Pin, GPIO_PIN_RESET);
     lcd_Unselect();
     _mainSnapshot.dirtyRegion_y1 = lastLine_y1;
 

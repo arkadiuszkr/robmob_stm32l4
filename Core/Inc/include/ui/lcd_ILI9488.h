@@ -11,6 +11,7 @@ void _lcd_addToSnapshot_printLine(const char *str);
 void _lcd_addToSnapshot_printBold(const char *str);
 void _lcd_drawMenu();
 void _lcd_drawMenuThroughSPI();
+void DMA_Interupt_SPI2_FullTransfer();
 
 extern bool lcd_requestedReprint;
 

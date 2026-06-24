@@ -10,6 +10,7 @@ typedef char UARTMessage[MAX_UART_DebugMessageLength];
 extern osMessageQueueId_t Queue_UART_SendDebugHandle;
 extern osMessageQueueId_t Queue_InputActionHandle;
 extern osThreadId_t TaskN_UARTDebugHandle;
+extern osThreadId_t TaskN_SPI_LCDHandle;
 extern osSemaphoreId_t semBin_menuSnapshotHandle;
 
 #endif
