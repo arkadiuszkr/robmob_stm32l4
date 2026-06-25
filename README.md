@@ -157,9 +157,58 @@ Własny silnik renderowania tekstu terminal-style (lcd_ILI9488.c/fonts.h)
     • rozdzielenie tekstu na okna buferów
     • odświerzanie tylko tej części ekranu, która uległa zmianie (dirty_region)
 Napisanie własnego rozwiązania zamiast biblioteki LVGL ze względu na ograniczenia pamięci na STM32L476
+
 Komunikacja UART (freertos.c/input.c)
     • odbiór komend menu w przerwaniach
-    • przetwarzanie komunikatów poprzez kolejki wiadomości (Queue_UART_SendDebugHandle)
+    • przetwarzanie komunikatów poprzez kolejki wiadomości (Queue_UART_SendDebugHandle) 
+
+Struktura programu
+
+project/
+├─ CMakeLists.txt
+├─ CMakePresets.json
+├─ stm32l476.ioc
+├─ STM32L476XX_FLASH.ld
+├─ .clang-format
+├─ .gitignore
+│
+├─ Core/                          (STM32CubeMX generated - hardware abstraction layer)
+│  ├─ Inc/
+│  └─ Src/
+│     ├─ main.c                  → system entry point (bootstraps application)
+│     ├─ freertos.c             → RTOS task/queue/semaphore setup
+│     ├─ gpio.c                 → HAL GPIO configuration
+│     ├─ usart.c                → UART HAL driver init
+│     ├─ stm32l4xx_it.c         → interrupt service routines (ISRs only)
+│     ├─ stm32l4xx_hal_msp.c    → low-level HAL hardware hooks
+│     ├─ stm32l4xx_it.c         → interrupt vector handling
+│     ├─ stm32l4xx_hal_timebase_tim.c
+│     ├─ system_stm32l4xx.c     → MCU system startup/config
+│     ├─ syscalls.c             → libc hooks (printf, etc.)
+│     ├─ sysmem.c               → heap/memory backend
+│     └─ mainISR.c              → custom ISR extension layer (project-specific)
+│
+├─ Drivers/                       (STM32 HAL + CMSIS)
+│
+├─ Middlewares/                   (FreeRTOS, CMSIS-RTOS2)
+│
+├─ build/                         (compiled output - ignored)
+│
+├─ cmake/                         (build system helpers)
+│
+└─ src/                           (APPLICATION ARCHITECTURE LAYER)
+   │
+   ├─ core/                       → robot logic / system orchestration
+   │   └─ main_Robot.c           (application-level entry logic)
+   │
+   ├─ platform/                   → hardware/RTOS abstraction glue
+   │   (interfaces between HAL / FreeRTOS / application)
+   │
+   ├─ ui/                        → menu system / user interface logic
+   │
+   └─ input.c                   → input event handling (UART / GPIO abstraction)
+
+
 Szkic PCB dla układu elektronicznego robota
 ...mermaid
 graph TD
