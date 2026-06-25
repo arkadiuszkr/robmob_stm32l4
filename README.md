@@ -1,8 +1,9 @@
-Robot mobilny – implementacja STM32L4
+# Robot mobilny – implementacja STM32L4
 
 Idea projektu: Robot mobilny jako układ wahadła odwróconego na dwóch kołach. Porównanie implementacji pętli sterowania na Linux (Raspberry Pi z kernel patch) vs FreeRTOS (STM32L476) z możliwym rozszerzeniem o ESP32
 
-...mermaid
+
+```mermaid
 graph LR  
 
 subgraph "MCU"
@@ -37,19 +38,97 @@ class GYRO,ENCODER,BUTTONS sensors;
 class SCREEN outputs;
 class MOTORS actuators;
 class CONNECTOR connector;
-...
+```
+
+## Spis treści
+
+- [Funkcjonalności](#funkcjonalności)
+
+- [Struktura programu](#struktura-programu)
+
+- [Build i uruchomienie](#build-i-uruchomienie)
+
+- [Najważniejsze elementy projektu](#najważniejsze-elementy-projektu)
+
+- [Szkic PCB dla układu elektronicznego robota](#szkic-pcb-dla-układu-elektronicznego-robota)
+
+## Funkcjonalności
+
+- wielozadaniowość oparta o FreeRTOS
+- system menu sterowany UART i przyciskami
+- własny renderer tekstu LCD
+- transmisja SPI przez DMA
+- częściowe odświeżanie ekranu (dirty regions)
+- abstrakcja platformy (STM32 / Raspberry Pi)
+- modułowa architektura programu
+
+## Struktura programu
+
+```text
+stm32l4/
+│
+├─ Core/                          (Wygenerowane przez STM32CubeMX)
+│  ├─ Inc/
+│  │  ├─ include/               -> Architektura robota - własny program
+│  │  │  ├─ ui/                 -> Moduł UI robota
+│  │  │  ├─ platform/           -> Abstrakcja platformy
+│  │  │  └─ ...
+│  │  └─ mainISR.h              
+│  └─ Src/
+│     ├─ src/                   -> Architektura robota - własny program
+│     │  ├─ ui/                 -> Moduł UI robota
+│     │  ├─ platform/           -> Abstrakcja platformy
+│     │  └─ main_Robot.c        -> Main dla programu robota
+│     ├─ main.c                 -> Main dla schedulera
+│     └─ mainISR.c              -> Główne miejsce entry wszystkich przerwań
+│
+├─ Drivers/                       (Wygenerowane przez STM32CubeMX: STM32 HAL + CMSIS)
+├─ Middlewares/                   (Wygenerowane przez STM32CubeMX: FreeRTOS, CMSIS-RTOS2)
+├─ CMakeLists.txt               -> Zmodyfikowany CMake dla arm-none-eabi oraz Cortex-M4
+├─ CMakePresets.json            -> Autocomplete dla LSP
+└─ README.md
+```
 
 
+## Build i uruchomienie
 
+### Build
 
-Najważniejsze elementy projektu
-Architektura (main_Robot.c/freertos_header.h)
-    • początkowy prototyp aplikacji na Raspberry Pi z wykorzystaniem POSIX Threads
-    • następnie projekt został przeniesiony na STM32L476RG przez FreeRTOS (początek git wrzuconego na to repo)
-    • rozdzielenie struktury programu na osobne pliki, stworzenie interface dla podzespołów
-    • komunikacja między zadaniami realizowana jest za pomocą kolejek wiadomości, kolejek zdarzeń oraz TaskNotify
+W głównym katalogu:
 
-...mermaid
+```bash
+cmake -B build
+cmake --build build
+```
+
+### Wgranie programu na STM32
+
+```bash
+openocd -f interface/stlink.cfg -f target/stm32l4x.cfg
+```
+
+W drugim terminalu:
+
+```bash
+arm-none-eabi-gdb build/<nazwa_programu>
+```
+Następnie w GDB:
+
+```gdb
+target remote :3333
+load
+c
+```
+
+## Najważniejsze elementy projektu
+
+### Architektura (main_Robot.c/freertos_header.h)
+- początkowy prototyp aplikacji na Raspberry Pi z wykorzystaniem POSIX Threads
+- następnie projekt został przeniesiony na STM32L476RG przez FreeRTOS (początek git wrzuconego na to repo)
+- rozdzielenie struktury programu na osobne pliki, stworzenie interface dla podzespołów
+- komunikacja między zadaniami realizowana jest za pomocą kolejek wiadomości, kolejek zdarzeń oraz TaskNotify
+
+```mermaid
 flowchart TD
 
     subgraph Input Layer
@@ -86,22 +165,25 @@ flowchart TD
     DRIVER -->|"Saved snapshot"| RENDER
 
     RENDER -->|"SPI DMA"| LCD
-...
-System menu (cli_menu.c/cli_menu.h)
-    • modułowy system menu w C 1(stworzony przed migracją, na Raspberry Pi)
-    • sterowanie menu odbywa się poprzez wspólną kolejkę zdarzeń poprzez:
-        ◦ komendy przesyłane przez UART,
-        ◦ przyciski sprzętowe obsługiwane przez przerwania zewnętrzne
-Warstwa abstrakcji wyświetlacza (displayDriver.c/displayDriver.h)
-    • komunikacja UART
-    • wyświetlacz LCD
-    • (poprzednio) terminal Linux podczas prototypowania
-Sterownik LCD ILI9488 (lcd_ILI9488.c)
-    • logika dwóch buferów (frontBuffer i backBuffer)
-    • synchronizacja poprzez semaforę binarną oraz TaskNotify
-    • transmisja SPI (18bit RGB) przez DMA z prędkością 20MBit/s
+```
 
-...mermaid
+### System menu (cli_menu.c/cli_menu.h)
+- modułowy system menu w C (stworzony przed migracją, na Raspberry Pi)
+- sterowanie menu odbywa się poprzez wspólną kolejkę zdarzeń poprzez:
+    - komendy przesyłane przez UART
+    - przyciski obsługiwane przez przerwania zewnętrzne
+
+### Warstwa abstrakcji wyświetlacza (displayDriver.c/displayDriver.h)
+- komunikacja UART
+- wyświetlacz LCD
+- (poprzednio) terminal Linux podczas prototypowania
+
+### Sterownik LCD ILI9488 (lcd_ILI9488.c)
+- logika dwóch buferów (frontBuffer i backBuffer)
+- synchronizacja poprzez semaforę binarną oraz TaskNotify
+- transmisja SPI (18bit RGB) przez DMA z prędkością 20MBit/s
+
+```mermaid
 sequenceDiagram
     participant App
     participant Snapshot
@@ -148,69 +230,25 @@ sequenceDiagram
     end
 
 Renderer->>Snapshot: Release semaphore
-...
-Własny silnik renderowania tekstu terminal-style (lcd_ILI9488.c/fonts.h)
-    • obsługa bitmapowych czcionek wygenerowanych dla LVGL przez adapter (https://lvgl.io/tools/fontconverter)
-    • własny renderer tekstu
-    • zawijanie słów
-    • renderowanie okienkowe (uint8_t buffer[LCD_Width * Window_Height])
-    • rozdzielenie tekstu na okna buferów
-    • odświerzanie tylko tej części ekranu, która uległa zmianie (dirty_region)
+```
+
+### Własny silnik renderowania tekstu terminal-style (lcd_ILI9488.c/fonts.h)
+- obsługa bitmapowych czcionek wygenerowanych dla LVGL przez adapter (https://lvgl.io/tools/fontconverter)
+- własny renderer tekstu
+- zawijanie słów
+- renderowanie okienkowe (uint8_t buffer[LCD_Width * Window_Height])
+- rozdzielenie tekstu na okna buferów
+- odświerzanie tylko tej części ekranu, która uległa zmianie (dirty_region)
+
 Napisanie własnego rozwiązania zamiast biblioteki LVGL ze względu na ograniczenia pamięci na STM32L476
 
-Komunikacja UART (freertos.c/input.c)
-    • odbiór komend menu w przerwaniach
-    • przetwarzanie komunikatów poprzez kolejki wiadomości (Queue_UART_SendDebugHandle) 
-
-Struktura programu
-
-project/
-├─ CMakeLists.txt
-├─ CMakePresets.json
-├─ stm32l476.ioc
-├─ STM32L476XX_FLASH.ld
-├─ .clang-format
-├─ .gitignore
-│
-├─ Core/                          (STM32CubeMX generated - hardware abstraction layer)
-│  ├─ Inc/
-│  └─ Src/
-│     ├─ main.c                  → system entry point (bootstraps application)
-│     ├─ freertos.c             → RTOS task/queue/semaphore setup
-│     ├─ gpio.c                 → HAL GPIO configuration
-│     ├─ usart.c                → UART HAL driver init
-│     ├─ stm32l4xx_it.c         → interrupt service routines (ISRs only)
-│     ├─ stm32l4xx_hal_msp.c    → low-level HAL hardware hooks
-│     ├─ stm32l4xx_it.c         → interrupt vector handling
-│     ├─ stm32l4xx_hal_timebase_tim.c
-│     ├─ system_stm32l4xx.c     → MCU system startup/config
-│     ├─ syscalls.c             → libc hooks (printf, etc.)
-│     ├─ sysmem.c               → heap/memory backend
-│     └─ mainISR.c              → custom ISR extension layer (project-specific)
-│
-├─ Drivers/                       (STM32 HAL + CMSIS)
-│
-├─ Middlewares/                   (FreeRTOS, CMSIS-RTOS2)
-│
-├─ build/                         (compiled output - ignored)
-│
-├─ cmake/                         (build system helpers)
-│
-└─ src/                           (APPLICATION ARCHITECTURE LAYER)
-   │
-   ├─ core/                       → robot logic / system orchestration
-   │   └─ main_Robot.c           (application-level entry logic)
-   │
-   ├─ platform/                   → hardware/RTOS abstraction glue
-   │   (interfaces between HAL / FreeRTOS / application)
-   │
-   ├─ ui/                        → menu system / user interface logic
-   │
-   └─ input.c                   → input event handling (UART / GPIO abstraction)
+### Komunikacja UART (freertos.c/input.c)
+- odbiór komend menu w przerwaniach
+- przetwarzanie komunikatów poprzez kolejki wiadomości (Queue_UART_SendDebugHandle) 
 
 
-Szkic PCB dla układu elektronicznego robota
-...mermaid
+## Szkic PCB dla układu elektronicznego robota
+```mermaid
 graph TD
 
     subgraph PCB["PCB"]
@@ -488,5 +526,5 @@ graph TD
     class MOSFET_CH2 rgbGreen;
     class MOSFET_CH3 rgbBlue;
     class RGB_DIODES rgbGroup;
-...
+```
 
