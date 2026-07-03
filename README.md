@@ -27,11 +27,11 @@ MOTORS["Motors"]
 CONNECTOR --> SCREEN
 CONNECTOR -->|PWM| MOTORS
 
-classDef sensors fill:#b4dcef,stroke:#0288d1,stroke-width:2px;
-classDef pi fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px;
-classDef outputs fill:#ffe0b2,stroke:#f57c00,stroke-width:2px;
-classDef actuators fill:#ffcdd2,stroke:#c62828,stroke-width:2px;
-classDef connector fill:#d1c4e9,stroke:#673ab7,stroke-width:2px,stroke-dasharray:5 5;
+classDef sensors fill:#1f6f8b,stroke:#58a6ff,stroke-width:2px,color:#ffffff;
+classDef pi fill:#1b5e20,stroke:#3fb950,stroke-width:2px,color:#ffffff;
+classDef outputs fill:#8b5a00,stroke:#d29922,stroke-width:2px,color:#ffffff;
+classDef actuators fill:#8b1e2d,stroke:#f85149,stroke-width:2px,color:#ffffff;
+classDef connector fill:#4b3b75,stroke:#bc8cff,stroke-width:2px,color:#ffffff,stroke-dasharray:5 5;
 
 class PI pi;
 class GYRO,ENCODER,BUTTONS sensors;
@@ -498,29 +498,34 @@ graph TD
     INBETWEEN_RIGHT_ENCODER_B <-.-> RIGHT_ENCODER
 
     %% Styling
-    classDef mcu fill:#f0f0f0,stroke:#333,stroke-width:2px;
-    classDef stm32 fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px;
-    classDef pi fill:#e1bee7,stroke:#7b1fa2,stroke-width:2px;
-    classDef esp32 fill:#fff9c4,stroke:#f57f17,stroke-width:2px;
-    classDef inbetween fill:#f5f5f5,stroke:#9e9e9e,stroke-width:1px;
-    classDef sensors fill:#b4dcef,stroke:#0288d1,stroke-width:2px;
-    classDef outputs fill:#ffe0b2,stroke:#f57c00,stroke-width:2px;
-    classDef actuators fill:#ffcdd2,stroke:#c62828,stroke-width:2px;
-    classDef connector fill:#d1c4e9,stroke:#673ab7,stroke-width:2px,stroke-dasharray:5 5;
-    classDef transistor fill:#ffab91,stroke:#bf360c,stroke-width:2px;
-    classDef rgbRed fill:#ffcdd2,stroke:#c62828,stroke-width:2px;
-    classDef rgbGreen fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px;
-    classDef rgbBlue fill:#bbdefb,stroke:#0d47a1,stroke-width:2px;
-    classDef rgbGroup fill:#e3f2fd,stroke:#2196f3,stroke-width:2px;
-
+    classDef mcu fill:#30363d,stroke:#8b949e,stroke-width:2px,color:#ffffff;
+    classDef stm32 fill:#1b5e20,stroke:#3fb950,stroke-width:2px,color:#ffffff;
+    classDef pi fill:#4b3b75,stroke:#bc8cff,stroke-width:2px,color:#ffffff;
+    classDef esp32 fill:#8b5a00,stroke:#d29922,stroke-width:2px,color:#ffffff;
+    classDef inbetween fill:#21262d,stroke:#8b949e,stroke-width:1px,color:#ffffff;
+    classDef sensors fill:#1f6f8b,stroke:#58a6ff,stroke-width:2px,color:#ffffff;
+    classDef outputs fill:#8b5a00,stroke:#d29922,stroke-width:2px,color:#ffffff;
+    classDef actuators fill:#8b1e2d,stroke:#f85149,stroke-width:2px,color:#ffffff;
+    classDef connector fill:#4b3b75,stroke:#bc8cff,stroke-width:2px,color:#ffffff,stroke-dasharray:5 5;
+    classDef transistor fill:#8a4b12,stroke:#ff7b72,stroke-width:2px,color:#ffffff;
+    classDef rgbRed fill:#8b1e2d,stroke:#f85149,stroke-width:2px,color:#ffffff;
+    classDef rgbGreen fill:#1b5e20,stroke:#3fb950,stroke-width:2px,color:#ffffff;
+    classDef rgbBlue fill:#0d3b66,stroke:#58a6ff,stroke-width:2px,color:#ffffff;
+    classDef rgbGroup fill:#1f4b6e,stroke:#79c0ff,stroke-width:2px,color:#ffffff;
+    
     class ESP32,STM32,PI mcu;
     class GYRO,BUTTONS sensors;
     class OLED_SCREEN outputs;
     class LEFT_MOTOR,RIGHT_MOTOR,LEFT_ENCODER,RIGHT_ENCODER actuators;
+    
     class ESP32,ESP32_SPI_MOSI,ESP32_SPI_MISO,ESP32_SPI_SCK,ESP32_SPI_CS,ESP32_SPI2_MOSI,ESP32_SPI2_MISO,ESP32_SPI2_SCK,ESP32_SPI2_CS,ESP32_BUTTON_1,ESP32_BUTTON_2,ESP32_BUTTON_3,ESP32_BUTTON_4,ESP32_LEFT_ENCODER_A,ESP32_LEFT_ENCODER_B,ESP32_LEFT_PWM,ESP32_RIGHT_ENCODER_A,ESP32_RIGHT_ENCODER_B,ESP32_RIGHT_PWM,ESP32_POWER,ESP32_GND,ESP32_RGB_CH1,ESP32_RGB_CH2,ESP32_RGB_CH3 esp32;
+    
     class STM32,STM32_SPI_MOSI,STM32_SPI_MISO,STM32_SPI_SCK,STM32_SPI_CS,STM32_SPI2_MOSI,STM32_SPI2_MISO,STM32_SPI2_SCK,STM32_SPI2_CS,STM32_BUTTON_1,STM32_BUTTON_2,STM32_BUTTON_3,STM32_BUTTON_4,STM32_LEFT_ENCODER_A,STM32_LEFT_ENCODER_B,STM32_LEFT_PWM,STM32_RIGHT_ENCODER_A,STM32_RIGHT_ENCODER_B,STM32_RIGHT_PWM,STM32_POWER,STM32_GND,STM32_RGB_CH1,STM32_RGB_CH2,STM32_RGB_CH3 stm32;
+    
     class PI,PI_SPI_MOSI,PI_SPI_MISO,PI_SPI_SCK,PI_SPI_CS,PI_SPI2_MOSI,PI_SPI2_MISO,PI_SPI2_SCK,PI_SPI2_CS,PI_BUTTON_1,PI_BUTTON_2,PI_BUTTON_3,PI_BUTTON_4,PI_LEFT_ENCODER_A,PI_LEFT_ENCODER_B,PI_LEFT_PWM,PI_RIGHT_ENCODER_A,PI_RIGHT_ENCODER_B,PI_RIGHT_PWM,PI_POWER,PI_GND,PI_RGB_CH1,PI_RGB_CH2,PI_RGB_CH3 pi;
+    
     class INBETWEEN_SPI_MOSI,INBETWEEN_SPI_MISO,INBETWEEN_SPI_SCK,INBETWEEN_SPI_CS,INBETWEEN_SPI2_MOSI,INBETWEEN_SPI2_MISO,INBETWEEN_SPI2_SCK,INBETWEEN_SPI2_CS,INBETWEEN_BUTTON_1,INBETWEEN_BUTTON_2,INBETWEEN_BUTTON_3,INBETWEEN_BUTTON_4,INBETWEEN_LEFT_ENCODER_A,INBETWEEN_LEFT_ENCODER_B,INBETWEEN_LEFT_PWM,INBETWEEN_RIGHT_ENCODER_A,INBETWEEN_RIGHT_ENCODER_B,INBETWEEN_RIGHT_PWM,INBETWEEN_POWER,INBETWEEN_GND,INBETWEEN_RGB_CH1,INBETWEEN_RGB_CH2,INBETWEEN_RGB_CH3 inbetween;
+    
     class TRANSISTOR_LEFT,TRANSISTOR_RIGHT transistor;
     class MOSFET_CH1 rgbRed;
     class MOSFET_CH2 rgbGreen;
